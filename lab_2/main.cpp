@@ -3,41 +3,102 @@
 #include <vector>
 #include <fstream>
 #include <string>
+#include <math.h>
+#include <opencv4/opencv2/core.hpp>
+#include <opencv4/opencv2/highgui.hpp>
 
 using namespace std;
+using namespace cv;
 
-struct iris_flower
+void vec_to_mat( Mat& mat_matrix, vector <vector <double>>& vec_matrix )
 {
-  double sp_length;
-  double sp_width;
-  double pt_length;
-  double pt_width;
-};
-
-iris_flower calc_mean_vector( vector <iris_flower> input_vector )
-{
-  iris_flower mean_vector = { 0, 0, 0, 0 };
-  iris_flower temp_vector = { 0, 0, 0, 0 };
-  int input_vec_size = input_vector.size();
-
-  while( !input_vector.empty() )
+  for( int i = 0; i < vec_matrix.size(); i++ )
   {
-    temp_vector = input_vector.back();
-    input_vector.pop_back();
-    mean_vector.sp_length += temp_vector.sp_length;
-    mean_vector.sp_width  += temp_vector.sp_width;
-    mean_vector.pt_length += temp_vector.pt_length;
-    mean_vector.pt_width  += temp_vector.pt_width;
+    mat_matrix.at<double>(0,i) = vec_matrix[i][0];
+    mat_matrix.at<double>(1,i) = vec_matrix[i][1];
+    mat_matrix.at<double>(2,i) = vec_matrix[i][2];
+    mat_matrix.at<double>(3,i) = vec_matrix[i][3];
   }
-  
-  mean_vector.sp_length /= input_vec_size;
-  mean_vector.sp_width  /= input_vec_size;
-  mean_vector.pt_length /= input_vec_size;
-  mean_vector.pt_width  /= input_vec_size;
-
-  return( mean_vector );
 }
 
+void calc_mean_vector( Mat& input_dataset, Mat& mean_matrix )
+{
+  int input_dataset_size = input_dataset.cols;
+
+  for( int i = 0; i < input_dataset.cols; i++ )
+  {
+    mean_matrix.at<double>(0,0) += input_dataset.at<double>(0,i);
+    mean_matrix.at<double>(1,0) += input_dataset.at<double>(1,i);
+    mean_matrix.at<double>(2,0) += input_dataset.at<double>(2,i);
+    mean_matrix.at<double>(3,0) += input_dataset.at<double>(3,i);
+  }
+  
+  mean_matrix.at<double>(0,0) /= input_dataset_size;
+  mean_matrix.at<double>(0,0) /= input_dataset_size;
+  mean_matrix.at<double>(0,0) /= input_dataset_size;
+  mean_matrix.at<double>(0,0) /= input_dataset_size;
+}
+
+double mat_element_covariation( Mat& input_matrix, int a_vec_num, int b_vec_num, double& a_vec_mean, double& b_vec_mean )
+{
+  double temp_sum = 0;
+
+  for( int i = 0; i < input_matrix.cols; i++ )
+  {
+    temp_sum += ( input_matrix.at<double>(a_vec_num,i) - a_vec_mean ) * ( input_matrix.at<double>(b_vec_num,i) - b_vec_mean );
+  }
+
+  temp_sum /= input_matrix.cols;
+
+  return( temp_sum );
+}
+
+void cov_matrix_calc( Mat& input_dataset, Mat& mean_matrix, Mat& cov_matrix )
+{
+  for( int i = 0; i < 4; i++ )
+  {
+    for( int j = 0; j < 4; j++ )
+    {
+      cov_matrix.at<double>(i,j) = mat_element_covariation( input_dataset, i, j, mean_matrix.at<double>(0,i), mean_matrix.at<double>(0,j) );
+    }
+  }
+}
+
+vector <int>  find_clasters( Mat& test_dataset, Mat& setosa_mean_mat, Mat& versicolor_mean_mat, Mat& virginica_mean_mat, Mat& setosa_cov_mat, Mat& versicolor_cov_mat, Mat& virginica_cov_mat, double& iris_setosa_ln_det, double& iris_versicolor_ln_det, double& iris_virginica_ln_det )
+{
+  vector <int> claster_vector;
+  
+  int min_index = 0;
+  double min_element = 0;
+  double tmp_element = 0;
+
+  for( int i = 0; i < test_dataset.cols; i++ )
+  {
+
+    Mat mat_dif = ( test_dataset.col( i ) - setosa_mean_mat );
+    Mat trans_mat_dif = mat_dif.t( );
+    Mat tmp_mat = mat_dif * trans_mat_dif; // * setosa_cov_mat;
+    tmp_element =  tmp_mat.at<double>(0,0) + iris_setosa_ln_det;
+  }
+  
+  claster_vector.push_back( tmp_element );
+  return( claster_vector );
+}
+
+/*  fk = (x-m)T*Sk-1*(x-m) + ln(det(Sk-1));
+  vector <int> find_clasters( Mat& test_dataset, 
+
+  sub = (x-m);
+  transpose( sub, trans_sub );
+  invert( Sk, inv_Sk );
+  Scalar det = determinant( inv_Sk );
+  log( det[0] );
+*/
+
+
+
+
+  
 int main(int argc, char *argv[])
 {
 
@@ -45,13 +106,14 @@ int main(int argc, char *argv[])
 
   setlocale( LC_NUMERIC, "C" );
 
-  vector <iris_flower> iris_setosa;
-  vector <iris_flower> iris_versicolor;
-  vector <iris_flower> iris_virginica;
+  vector <vector <double>> iris_setosa;
+  vector <vector <double>> iris_versicolor;
+  vector <vector <double>> iris_virginica;
   
-  vector <iris_flower> test_dataset;
+  vector <vector <double>> test_dataset;
+  vector <int>             test_dataset_source_class;
 
-  ifstream iris_dataset( "/home/skr/qt_projects/lab_2/lab_2/iris.txt" );
+  ifstream iris_dataset( "/home/skr/qt_projects/lab_2_ida/lab_2/iris.txt" );
 
 // read data from file and separate into 3 classes
   while( iris_dataset )
@@ -60,7 +122,7 @@ int main(int argc, char *argv[])
     getline( iris_dataset, cur_str_line );
     const char *cur_char_line = cur_str_line.c_str();
 
-    iris_flower flower;
+    vector <double> flower;
 
     char sp_length  [3];
     char sp_width   [3];
@@ -70,10 +132,10 @@ int main(int argc, char *argv[])
 
     sscanf( cur_char_line, "%[^,] %*[,] %[^,] %*[,] %[^,] %*[,] %[^,] %*[,] %s", sp_length, sp_width, pt_length, pt_width, iris_class );
 
-    flower.sp_length  = strtod( sp_length, NULL );
-    flower.sp_width   = strtod( sp_width,  NULL );
-    flower.pt_length  = strtod( pt_length, NULL );
-    flower.pt_width   = strtod( pt_width,  NULL );
+    flower.push_back( strtod( sp_length, NULL ) );
+    flower.push_back( strtod( sp_width,  NULL ) );
+    flower.push_back( strtod( pt_length, NULL ) );
+    flower.push_back( strtod( pt_width,  NULL ) );
 
     string str_iris_class = iris_class;
 
@@ -107,11 +169,51 @@ int main(int argc, char *argv[])
         test_dataset.push_back( iris_virginica[index] );
         iris_virginica.erase( iris_virginica.begin() + index ); 
       }
+      test_dataset_source_class.push_back( i );
       max_rand_index--;
     }
   }
 
-// 
+// transform vectors into cv::Mat for futher calculations
+  Mat iris_setosa_dataset     = Mat::zeros( 4, iris_setosa.size(),     CV_64FC1 );
+  Mat iris_versicolor_dataset = Mat::zeros( 4, iris_versicolor.size(), CV_64FC1 );
+  Mat iris_virginica_dataset  = Mat::zeros( 4, iris_virginica.size(),  CV_64FC1 );
+
+  vec_to_mat( iris_setosa_dataset,     iris_setosa     );
+  vec_to_mat( iris_versicolor_dataset, iris_versicolor );
+  vec_to_mat( iris_virginica_dataset,  iris_virginica  );
+
+  Mat iris_setosa_mean_matrix     = Mat::zeros( 4, 1, CV_64FC1 );
+  Mat iris_versicolor_mean_matrix = Mat::zeros( 4, 1, CV_64FC1 );
+  Mat iris_virginica_mean_matrix  = Mat::zeros( 4, 1, CV_64FC1 );
+
+  calc_mean_vector( iris_setosa_dataset,     iris_setosa_mean_matrix     );
+  calc_mean_vector( iris_versicolor_dataset, iris_versicolor_mean_matrix );
+  calc_mean_vector( iris_virginica_dataset,  iris_virginica_mean_matrix  );
+
+  Mat iris_setosa_cov_matrix     = Mat::zeros( 4, 4, CV_64FC1 );
+  Mat iris_versicolor_cov_matrix = Mat::zeros( 4, 4, CV_64FC1 );
+  Mat iris_virginica_cov_matrix  = Mat::zeros( 4, 4, CV_64FC1 );
+
+  cov_matrix_calc( iris_setosa_dataset,     iris_setosa_mean_matrix,     iris_setosa_cov_matrix     );
+  cov_matrix_calc( iris_versicolor_dataset, iris_versicolor_mean_matrix, iris_versicolor_cov_matrix );
+  cov_matrix_calc( iris_virginica_dataset,  iris_virginica_mean_matrix,  iris_virginica_cov_matrix  );
+
+  invert( iris_setosa_cov_matrix,     iris_setosa_cov_matrix     );
+  invert( iris_versicolor_cov_matrix, iris_versicolor_cov_matrix );
+  invert( iris_virginica_cov_matrix,  iris_virginica_cov_matrix  );
+
+  Scalar setosa_s_det     = determinant( iris_setosa_cov_matrix     );
+  Scalar versicolor_s_det = determinant( iris_versicolor_cov_matrix );
+  Scalar virginica_s_det  = determinant( iris_virginica_cov_matrix  );
+
+  double iris_setosa_ln_det     = log( setosa_s_det[0]     );
+  double iris_versicolor_ln_det = log( versicolor_s_det[0] );
+  double iris_virginica_ln_det  = log( virginica_s_det[0]  );
   
+  Mat tst;  
+  tst.push_back( iris_setosa[0] );
+
+
   return a.exec();
 }
