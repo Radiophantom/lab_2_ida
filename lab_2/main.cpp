@@ -14,10 +14,10 @@ void vec_to_mat( Mat& mat_matrix, vector <vector <double>>& vec_matrix )
 {
   for( int i = 0; i < vec_matrix.size(); i++ )
   {
-    mat_matrix.at<double>(0,i) = vec_matrix[i][0];
-    mat_matrix.at<double>(1,i) = vec_matrix[i][1];
-    mat_matrix.at<double>(2,i) = vec_matrix[i][2];
-    mat_matrix.at<double>(3,i) = vec_matrix[i][3];
+    mat_matrix.at<double>(i,0) = vec_matrix[i][0];
+    mat_matrix.at<double>(i,1) = vec_matrix[i][1];
+    mat_matrix.at<double>(i,2) = vec_matrix[i][2];
+    mat_matrix.at<double>(i,3) = vec_matrix[i][3];
   }
 }
 
@@ -64,41 +64,31 @@ void cov_matrix_calc( Mat& input_dataset, Mat& mean_matrix, Mat& cov_matrix )
   }
 }
 
-vector <int>  find_clasters( Mat& test_dataset, Mat& setosa_mean_mat, Mat& versicolor_mean_mat, Mat& virginica_mean_mat, Mat& setosa_cov_mat, Mat& versicolor_cov_mat, Mat& virginica_cov_mat, double& iris_setosa_ln_det, double& iris_versicolor_ln_det, double& iris_virginica_ln_det )
+vector <double>  find_claster( Mat& test_dataset, Mat& setosa_mean_mat, Mat& versicolor_mean_mat, Mat& virginica_mean_mat, Mat& setosa_cov_mat, Mat& versicolor_cov_mat, Mat& virginica_cov_mat )
 {
-  vector <int> claster_vector;
+  vector <double> claster_dist_vector;
   
-  int min_index = 0;
-  double min_element = 0;
-  double tmp_element = 0;
-
-  for( int i = 0; i < test_dataset.cols; i++ )
-  {
-
-    Mat mat_dif = ( test_dataset.col( i ) - setosa_mean_mat );
-    Mat trans_mat_dif = mat_dif.t( );
-    Mat tmp_mat = mat_dif * trans_mat_dif; // * setosa_cov_mat;
-    tmp_element =  tmp_mat.at<double>(0,0) + iris_setosa_ln_det;
-  }
+  Mat vec_dif       = ( test_dataset - setosa_mean_mat );
+  Mat vec_dif_trans = vec_dif.t( );
+  Mat tmp_mat       = vec_dif * setosa_cov_mat * vec_dif_trans;
   
-  claster_vector.push_back( tmp_element );
-  return( claster_vector );
+  claster_dist_vector.push_back( tmp_mat.at<double>(0,0) );
+
+  vec_dif       = ( test_dataset - versicolor_mean_mat );
+  vec_dif_trans = vec_dif.t( );
+  tmp_mat       = vec_dif * versicolor_cov_mat * vec_dif_trans;
+  
+  claster_dist_vector.push_back( tmp_mat.at<double>(0,0) );
+
+  vec_dif       = ( test_dataset - virginica_mean_mat );
+  vec_dif_trans = vec_dif.t( );
+  tmp_mat       = vec_dif * virginica_cov_mat * vec_dif_trans;
+  
+  claster_dist_vector.push_back( tmp_mat.at<double>(0,0) );
+
+  return( claster_dist_vector );
 }
 
-/*  fk = (x-m)T*Sk-1*(x-m) + ln(det(Sk-1));
-  vector <int> find_clasters( Mat& test_dataset, 
-
-  sub = (x-m);
-  transpose( sub, trans_sub );
-  invert( Sk, inv_Sk );
-  Scalar det = determinant( inv_Sk );
-  log( det[0] );
-*/
-
-
-
-
-  
 int main(int argc, char *argv[])
 {
 
@@ -178,10 +168,12 @@ int main(int argc, char *argv[])
   Mat iris_setosa_dataset     = Mat::zeros( 4, iris_setosa.size(),     CV_64FC1 );
   Mat iris_versicolor_dataset = Mat::zeros( 4, iris_versicolor.size(), CV_64FC1 );
   Mat iris_virginica_dataset  = Mat::zeros( 4, iris_virginica.size(),  CV_64FC1 );
+  Mat iris_test_dataset       = Mat::zeros( 4, test_dataset.size(),    CV_64FC1 );
 
   vec_to_mat( iris_setosa_dataset,     iris_setosa     );
   vec_to_mat( iris_versicolor_dataset, iris_versicolor );
   vec_to_mat( iris_virginica_dataset,  iris_virginica  );
+  vec_to_mat( iris_test_dataset,       test_dataset    );
 
   Mat iris_setosa_mean_matrix     = Mat::zeros( 4, 1, CV_64FC1 );
   Mat iris_versicolor_mean_matrix = Mat::zeros( 4, 1, CV_64FC1 );
@@ -211,9 +203,7 @@ int main(int argc, char *argv[])
   double iris_versicolor_ln_det = log( versicolor_s_det[0] );
   double iris_virginica_ln_det  = log( virginica_s_det[0]  );
   
-  Mat tst;  
-  tst.push_back( iris_setosa[0] );
-
+  vector <double> result = find_claster( iris_test_dataset.col(0), iris_setosa_mean_matrix, iris_versicolor_mean_matrix, iris_virginica_mean_matrix, iris_setosa_cov_matrix, iris_versicolor_cov_matrix, iris_virginica_cov_matrix );
 
   return a.exec();
 }
