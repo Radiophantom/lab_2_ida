@@ -5,7 +5,6 @@
 #include <string>
 #include <math.h>
 #include <opencv4/opencv2/core.hpp>
-#include <opencv4/opencv2/highgui.hpp>
 
 using namespace std;
 using namespace cv;
@@ -23,70 +22,90 @@ void vec_to_mat( Mat& mat_matrix, vector <vector <double>>& vec_matrix )
 
 void calc_mean_vector( Mat& input_dataset, Mat& mean_matrix )
 {
-  int input_dataset_size = input_dataset.cols;
 
-  for( int i = 0; i < input_dataset.cols; i++ )
+  for( int i = 0; i < input_dataset.rows; i++ )
   {
-    mean_matrix.at<double>(0,0) += input_dataset.at<double>(0,i);
-    mean_matrix.at<double>(1,0) += input_dataset.at<double>(1,i);
-    mean_matrix.at<double>(2,0) += input_dataset.at<double>(2,i);
-    mean_matrix.at<double>(3,0) += input_dataset.at<double>(3,i);
+    mean_matrix += input_dataset.row(i);
   }
   
-  mean_matrix.at<double>(0,0) /= input_dataset_size;
-  mean_matrix.at<double>(0,0) /= input_dataset_size;
-  mean_matrix.at<double>(0,0) /= input_dataset_size;
-  mean_matrix.at<double>(0,0) /= input_dataset_size;
+  mean_matrix /= input_dataset.rows;
 }
 
-double mat_element_covariation( Mat& input_matrix, int a_vec_num, int b_vec_num, double& a_vec_mean, double& b_vec_mean )
+double cov_matrix_element( Mat& a_col, Mat& b_col, double& a_col_mean, double& b_col_mean )
 {
-  double temp_sum = 0;
+  double temp_var = 0;
 
-  for( int i = 0; i < input_matrix.cols; i++ )
+  for( int i = 0; i < a_col.rows; i++ )
   {
-    temp_sum += ( input_matrix.at<double>(a_vec_num,i) - a_vec_mean ) * ( input_matrix.at<double>(b_vec_num,i) - b_vec_mean );
+    temp_var += ( a_col.at<double>(0,i) - a_col_mean ) * ( b_col.at<double>(0,i) - b_col_mean );
   }
 
-  temp_sum /= input_matrix.cols;
-
-  return( temp_sum );
+  return( temp_var/a_col.rows );
 }
 
 void cov_matrix_calc( Mat& input_dataset, Mat& mean_matrix, Mat& cov_matrix )
 {
-  for( int i = 0; i < 4; i++ )
+  Mat a_col;
+  Mat b_col;
+
+  for( int i = 0; i < cov_matrix.rows; i++ )
   {
-    for( int j = 0; j < 4; j++ )
+    for( int j = 0; j < cov_matrix.cols; j++ )
     {
-      cov_matrix.at<double>(i,j) = mat_element_covariation( input_dataset, i, j, mean_matrix.at<double>(0,i), mean_matrix.at<double>(0,j) );
+      input_dataset.col(i).copyTo(a_col);
+      input_dataset.col(j).copyTo(b_col);
+      cov_matrix.at<double>(i,j) = cov_matrix_element( a_col, b_col, mean_matrix.at<double>(0,i), mean_matrix.at<double>(0,j) );
     }
   }
 }
 
-vector <double>  find_claster( Mat& test_dataset, Mat& setosa_mean_mat, Mat& versicolor_mean_mat, Mat& virginica_mean_mat, Mat& setosa_cov_mat, Mat& versicolor_cov_mat, Mat& virginica_cov_mat )
+int find_min_index( vector <double>& dist_vec )
 {
-  vector <double> claster_dist_vector;
+  int min_index = 0;
+  double min_value = dist_vec[0];
+
+  for( int i = 1; i < dist_vec.size(); i++ )
+  {
+    if( dist_vec[i] < min_value )
+    {
+      min_index = i;
+      min_value = dist_vec[i];
+    }
+  }
   
-  Mat vec_dif       = ( test_dataset - setosa_mean_mat );
+  return( min_index );
+}
+
+int find_cluster( Mat& test_row, Mat& setosa_mean_mat, Mat& versicolor_mean_mat, Mat& virginica_mean_mat, Mat& setosa_cov_mat, Mat& versicolor_cov_mat, Mat& virginica_cov_mat )
+{
+  vector <double> cluster_dist_vector;
+
+  Scalar setosa_s_det     = determinant( setosa_cov_mat     );
+  Scalar versicolor_s_det = determinant( versicolor_cov_mat );
+  Scalar virginica_s_det  = determinant( virginica_cov_mat  );
+
+  Mat vec_dif       = ( test_row - setosa_mean_mat );
   Mat vec_dif_trans = vec_dif.t( );
-  Mat tmp_mat       = vec_dif * setosa_cov_mat * vec_dif_trans;
+  Mat tmp_val       = vec_dif * setosa_cov_mat * vec_dif_trans;
+  double fk_dist    = tmp_val.at<double>(0,0) + log( setosa_s_det[0] );
   
-  claster_dist_vector.push_back( tmp_mat.at<double>(0,0) );
+  cluster_dist_vector.push_back( fk_dist );
 
-  vec_dif       = ( test_dataset - versicolor_mean_mat );
+  vec_dif       = ( test_row - versicolor_mean_mat );
   vec_dif_trans = vec_dif.t( );
-  tmp_mat       = vec_dif * versicolor_cov_mat * vec_dif_trans;
+  tmp_val       = vec_dif * versicolor_cov_mat * vec_dif_trans;
+  fk_dist    = tmp_val.at<double>(0,0) + log( versicolor_s_det[0] );
   
-  claster_dist_vector.push_back( tmp_mat.at<double>(0,0) );
+  cluster_dist_vector.push_back( fk_dist );
 
-  vec_dif       = ( test_dataset - virginica_mean_mat );
+  vec_dif       = ( test_row - virginica_mean_mat );
   vec_dif_trans = vec_dif.t( );
-  tmp_mat       = vec_dif * virginica_cov_mat * vec_dif_trans;
+  tmp_val       = vec_dif * virginica_cov_mat * vec_dif_trans;
+  fk_dist    = tmp_val.at<double>(0,0) + log( virginica_s_det[0] );
   
-  claster_dist_vector.push_back( tmp_mat.at<double>(0,0) );
+  cluster_dist_vector.push_back( fk_dist );
 
-  return( claster_dist_vector );
+  return( find_min_index( cluster_dist_vector ) );
 }
 
 int main(int argc, char *argv[])
@@ -165,19 +184,19 @@ int main(int argc, char *argv[])
   }
 
 // transform vectors into cv::Mat for futher calculations
-  Mat iris_setosa_dataset     = Mat::zeros( 4, iris_setosa.size(),     CV_64FC1 );
-  Mat iris_versicolor_dataset = Mat::zeros( 4, iris_versicolor.size(), CV_64FC1 );
-  Mat iris_virginica_dataset  = Mat::zeros( 4, iris_virginica.size(),  CV_64FC1 );
-  Mat iris_test_dataset       = Mat::zeros( 4, test_dataset.size(),    CV_64FC1 );
+  Mat iris_setosa_dataset     = Mat::zeros( iris_setosa.size(),     4, CV_64FC1 );
+  Mat iris_versicolor_dataset = Mat::zeros( iris_versicolor.size(), 4, CV_64FC1 );
+  Mat iris_virginica_dataset  = Mat::zeros( iris_virginica.size(),  4, CV_64FC1 );
+  Mat iris_test_dataset       = Mat::zeros( test_dataset.size(),    4, CV_64FC1 );
 
   vec_to_mat( iris_setosa_dataset,     iris_setosa     );
   vec_to_mat( iris_versicolor_dataset, iris_versicolor );
   vec_to_mat( iris_virginica_dataset,  iris_virginica  );
   vec_to_mat( iris_test_dataset,       test_dataset    );
 
-  Mat iris_setosa_mean_matrix     = Mat::zeros( 4, 1, CV_64FC1 );
-  Mat iris_versicolor_mean_matrix = Mat::zeros( 4, 1, CV_64FC1 );
-  Mat iris_virginica_mean_matrix  = Mat::zeros( 4, 1, CV_64FC1 );
+  Mat iris_setosa_mean_matrix     = Mat::zeros( 1, 4, CV_64FC1 );
+  Mat iris_versicolor_mean_matrix = Mat::zeros( 1, 4, CV_64FC1 );
+  Mat iris_virginica_mean_matrix  = Mat::zeros( 1, 4, CV_64FC1 );
 
   calc_mean_vector( iris_setosa_dataset,     iris_setosa_mean_matrix     );
   calc_mean_vector( iris_versicolor_dataset, iris_versicolor_mean_matrix );
@@ -195,15 +214,43 @@ int main(int argc, char *argv[])
   invert( iris_versicolor_cov_matrix, iris_versicolor_cov_matrix );
   invert( iris_virginica_cov_matrix,  iris_virginica_cov_matrix  );
 
-  Scalar setosa_s_det     = determinant( iris_setosa_cov_matrix     );
-  Scalar versicolor_s_det = determinant( iris_versicolor_cov_matrix );
-  Scalar virginica_s_det  = determinant( iris_virginica_cov_matrix  );
+  vector <int> result_class_vec;
 
-  double iris_setosa_ln_det     = log( setosa_s_det[0]     );
-  double iris_versicolor_ln_det = log( versicolor_s_det[0] );
-  double iris_virginica_ln_det  = log( virginica_s_det[0]  );
-  
-  vector <double> result = find_claster( iris_test_dataset.col(0), iris_setosa_mean_matrix, iris_versicolor_mean_matrix, iris_virginica_mean_matrix, iris_setosa_cov_matrix, iris_versicolor_cov_matrix, iris_virginica_cov_matrix );
+  for( int i = 0; i < iris_test_dataset.rows; i++ )
+  {
+    Mat test_row;
+    int cluster_num;
+
+    iris_test_dataset.row(i).copyTo( test_row );
+    cluster_num = find_cluster( test_row, iris_setosa_mean_matrix, iris_versicolor_mean_matrix, iris_virginica_mean_matrix, iris_setosa_cov_matrix, iris_versicolor_cov_matrix, iris_virginica_cov_matrix );
+    result_class_vec.push_back( cluster_num );
+  }
+
+  double right_desicions = 0;
+  double wrong_desicions = 0;
+
+  for( int i = 0; i < result_class_vec.size(); i++ )
+  {
+    if( i < 5 )
+    {
+      if( result_class_vec[i] == 0 ) { right_desicions++; }
+      else                           { wrong_desicions++; }
+    }
+    else if( i < 10 )
+    {
+      if( result_class_vec[i] == 1 ) { right_desicions++; }
+      else                           { wrong_desicions++; }
+    }
+    else if( i < 15 )
+    {
+      if( result_class_vec[i] == 2 ) { right_desicions++; }
+      else                           { wrong_desicions++; }
+    }
+  }
+
+  double test_result = ( right_desicions / result_class_vec.size() )*100;
+  //printf( "right desicions percent = %.2f\n", test_result );
+  cout << "right_desicions_percent = " << test_result << endl;
 
   return a.exec();
 }
