@@ -5,6 +5,7 @@
 #include <string>
 #include <math.h>
 #include <opencv4/opencv2/core.hpp>
+#include <time.h>
 
 using namespace std;
 using namespace cv;
@@ -159,6 +160,7 @@ int main(int argc, char *argv[])
 // extract test dataset from all classes
   for( int i = 0; i < 3; i++ )
   {
+    srand( time( NULL ) );
     int max_rand_index = 50;
     for( int j = 0; j < 5; j++ )
     {
@@ -249,7 +251,7 @@ int main(int argc, char *argv[])
   }
 
   double test_result = ( right_desicions / result_class_vec.size() )*100;
-  //printf( "right desicions percent = %.2f\n", test_result );
+
   cout << "right_desicions_percent = " << test_result << endl;
 
   return a.exec();
